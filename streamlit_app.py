@@ -88,7 +88,7 @@ def zip_bytes(mapping):
 
 
 # ---------- batch ----------
-def run_batch(kind, places, date, model, keys):
+def run_batch(kind, places, date, model, keys, skip_done=True):
     pool = get_pool(keys)
     builder = prompts.build_city_prompt if kind == "city" else prompts.build_dist_prompt
     store = st.session_state.setdefault(f"scripts_{kind}", {})
@@ -103,6 +103,11 @@ def run_batch(kind, places, date, model, keys):
             f"- {'✅' if r['ok'] else '❌'} {r['place']} — {r['note']}" for r in results))
 
     for n, place in enumerate(places, 1):
+        # resume: skip places already generated this session (survives wifi blips / re-clicks)
+        if skip_done and store.get(place, "").strip():
+            results.append({"place": place, "ok": True, "note": "already generated — skipped"})
+            render(); prog.progress(n / len(places))
+            continue
         log(f"[{n}/{len(places)}] {place}: generating…")
         try:
             text, key_no = pool.generate(model, builder(place, date), on_event=log)
@@ -165,7 +170,12 @@ for kind, tab in (("city", tab_city), ("dist", tab_dist)):
             opts = model_options()
             model = st.selectbox("Model", opts, index=model_index(opts), key=f"{kind}_model")
         places = [p.strip() for p in raw.replace("\n", ",").split(",") if p.strip()]
-        st.caption(f"{len(places)} place(s)")
+        _done = st.session_state.get(f"scripts_{kind}", {})
+        _done_here = sum(1 for p in places if _done.get(p, "").strip())
+        st.caption(f"{len(places)} place(s)" + (f" · {_done_here} already done this session" if _done_here else ""))
+        skip_done = st.checkbox("Skip already-generated (resume)", value=True, key=f"{kind}_skip",
+                                help="Re-clicking Generate continues where it left off instead of "
+                                     "redoing every place. Uncheck to force a full re-generate.")
         if st.button(f"✨ Generate {len(places)} {kind} scripts", type="primary", key=f"{kind}_go",
                      use_container_width=True):
             keys = current_keys()
@@ -174,12 +184,16 @@ for kind, tab in (("city", tab_city), ("dist", tab_dist)):
             elif not places:
                 st.error("Enter at least one place.")
             else:
-                run_batch(kind, places, date.strip(), model, keys)
+                run_batch(kind, places, date.strip(), model, keys, skip_done=skip_done)
         store = st.session_state.get(f"scripts_{kind}", {})
         if store:
-            st.download_button(f"⬇️ Download {len(store)} {kind} scripts (ZIP)",
+            d1, d2 = st.columns([3, 1])
+            d1.download_button(f"⬇️ Download {len(store)} {kind} scripts (ZIP)",
                                zip_bytes(store), f"{kind}_scripts.txt.zip", "application/zip",
                                key=f"{kind}_dl", use_container_width=True)
+            if d2.button("🗑 Clear", key=f"{kind}_clear", use_container_width=True,
+                         help="Forget this session's generated scripts and start fresh."):
+                st.session_state.pop(f"scripts_{kind}", None); st.rerun()
 
 with tab_head:
     st.markdown("Headlines from your generated scripts (this session) or uploaded `.txt` files.")
