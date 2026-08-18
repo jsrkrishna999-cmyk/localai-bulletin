@@ -8,8 +8,16 @@
 #   • Google Drive option removed (not applicable in Snowflake).
 import io
 import zipfile
+from datetime import datetime, timezone, timedelta
 
 import streamlit as st
+
+# Auto-detect today's date in India (IST = UTC+5:30) so the user never types it.
+_IST = timezone(timedelta(hours=5, minutes=30))
+
+
+def today_ist():
+    return datetime.now(_IST).strftime("%d-%m-%Y")
 
 import prompts
 import headlines_local
@@ -152,7 +160,8 @@ for kind, tab in (("city", tab_city), ("dist", tab_dist)):
             raw = st.text_area("Places (comma-separated)", prompts.DEFAULT_PLACES, height=90,
                                key=f"{kind}_places")
         with c2:
-            date = st.text_input("Date (DD-MM-YYYY)", prompts.DEFAULT_DATE, key=f"{kind}_date")
+            date = st.text_input("Date (DD-MM-YYYY) · auto = today", today_ist(), key=f"{kind}_date",
+                                  help="Auto-filled with today's date (India time). Edit only if you need a different date.")
             opts = model_options()
             model = st.selectbox("Model", opts, index=model_index(opts), key=f"{kind}_model")
         places = [p.strip() for p in raw.replace("\n", ",").split(",") if p.strip()]
