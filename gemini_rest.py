@@ -65,6 +65,21 @@ def list_models(key):
     return sorted(set(out))
 
 
+def _reason(body):
+    """Pull a short human reason out of Google's error JSON: prefer error.status, then message."""
+    if not body:
+        return ""
+    try:
+        err = json.loads(body).get("error", {})
+        status = err.get("status", "")
+        msg = (err.get("message", "") or "").strip().replace("\n", " ")
+        if status and msg:
+            return f"{status}: {msg[:120]}"
+        return status or msg[:140]
+    except Exception:
+        return body.strip().replace("\n", " ")[:140]
+
+
 def _classify(code, body):
     b = (body or "").lower()
     if code in (400, 401, 403) and ("api_key_invalid" in b or "api key not valid" in b
@@ -127,19 +142,20 @@ class KeyPool:
                         body = e.read().decode("utf-8")
                     except Exception:
                         pass
+                    reason = _reason(body) or e.reason or ""
                     kind = _classify(e.code, body)
                     if kind in ("deadkey", "quota"):
                         self.spent.add(i)
                         why = "INVALID" if kind == "deadkey" else "out of quota"
-                        log(f"🔑 Key #{i+1} ({mask(key)}) {why} → next key ({self.remaining()} left)")
+                        log(f"🔑 Key #{i+1} ({mask(key)}) {why} [{e.code} {reason}] → next key ({self.remaining()} left)")
                         break
                     if kind == "transient" and attempt < transient_retries:
-                        log(f"⏳ Key #{i+1}: server busy → retry {attempt}/{transient_retries} in {transient_wait}s")
+                        log(f"⏳ Key #{i+1}: {e.code} {reason} → retry {attempt}/{transient_retries} in {transient_wait}s")
                         time.sleep(transient_wait)
                         continue
                     if kind == "transient":
                         self.spent.add(i)
-                        log(f"⚠️ Key #{i+1}: still failing → skipping")
+                        log(f"⚠️ Key #{i+1}: {e.code} {reason} → skipping")
                         break
                     raise RuntimeError(f"Gemini error {e.code}: {body[:300]}")
                 except urllib.error.URLError as e:
