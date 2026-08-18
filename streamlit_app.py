@@ -24,8 +24,8 @@ import headlines_local
 from gemini_rest import KeyPool, load_keys, mask, list_models, AllKeysExhausted
 
 # gemini-2.5-flash & 2.0-flash were deprecated by Google (2026-08). '-latest' auto-updates.
-DEFAULT_MODEL = "gemini-flash-latest"
-MODELS = ["gemini-flash-latest", "gemini-flash-lite-latest", "gemini-3.5-flash",
+DEFAULT_MODEL = "gemini-flash-lite-latest"
+MODELS = ["gemini-flash-lite-latest", "gemini-flash-latest", "gemini-3.5-flash",
           "gemini-3.1-flash-lite", "gemini-2.5-pro"]
 
 st.set_page_config(page_title="LocalAI TV — Bulletin Generator", page_icon="📺", layout="wide")
