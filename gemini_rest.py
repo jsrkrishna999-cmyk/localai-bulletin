@@ -116,17 +116,30 @@ class KeyPool:
                 return i
         return None
 
-    def generate(self, model, prompt, on_event=None, transient_retries=3, transient_wait=15):
+    def generate(self, model, prompt, on_event=None, transient_retries=2, transient_wait=6):
         import urllib.error                       # lazy (see note at top of file)
         log = on_event or (lambda *_a: None)
         if not self.keys:
             raise AllKeysExhausted("No API keys provided.")
         payload = {"contents": [{"role": "user", "parts": [{"text": prompt}]}]}
+        tried_transient = set()   # keys that hit a MODEL-overload this call — fine, just busy, don't spend
         while True:
-            i = self._next()
+            # pick next key that's neither spent nor already transient-skipped this call
+            i = None
+            for step in range(len(self.keys)):
+                j = (self.idx + step) % len(self.keys)
+                if j not in self.spent and j not in tried_transient:
+                    i = j
+                    break
             if i is None:
-                raise AllKeysExhausted(
-                    f"All {len(self.keys)} keys are out of quota / invalid. Add more and continue.")
+                if self.remaining() == 0:
+                    raise AllKeysExhausted(
+                        f"All {len(self.keys)} keys are out of quota / invalid. Add more and continue.")
+                # every usable key hit the same overloaded model → it's Google's model, not your keys
+                raise RuntimeError(
+                    f"Model '{model}' is overloaded (503) on Google's side right now — all "
+                    f"{self.remaining()} keys are fine, they just can't reach it. Try again in a "
+                    f"minute, or pick a different model.")
             key = self.keys[i]
             url = f"{BASE}/models/{model}:generateContent?key={key}"
             for attempt in range(1, transient_retries + 1):
@@ -146,6 +159,7 @@ class KeyPool:
                     kind = _classify(e.code, body)
                     if kind in ("deadkey", "quota"):
                         self.spent.add(i)
+                        self.idx = (i + 1) % len(self.keys)
                         why = "INVALID" if kind == "deadkey" else "out of quota"
                         log(f"🔑 Key #{i+1} ({mask(key)}) {why} [{e.code} {reason}] → next key ({self.remaining()} left)")
                         break
@@ -154,8 +168,9 @@ class KeyPool:
                         time.sleep(transient_wait)
                         continue
                     if kind == "transient":
-                        self.spent.add(i)
-                        log(f"⚠️ Key #{i+1}: {e.code} {reason} → skipping")
+                        tried_transient.add(i)          # DON'T spend — key is good, model is busy
+                        self.idx = (i + 1) % len(self.keys)
+                        log(f"⚠️ Key #{i+1}: {e.code} {reason} → model busy, trying next key (key NOT used up)")
                         break
                     raise RuntimeError(f"Gemini error {e.code}: {body[:300]}")
                 except urllib.error.URLError as e:
