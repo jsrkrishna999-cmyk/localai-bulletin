@@ -8,7 +8,11 @@ DEFAULT_PLACES = ("Guntur, Nellore, Tirupati, Warangal, Nalgonda, Kakinada, Kari
                   # new 18 channels
                   "Nandyal, Chittoor, Machilipatnam, Bapatla, Amalapuram, Anakapalli, "
                   "Bhimavaram, Narasaraopet, Srikakulam, Proddatur, Sangareddy, Ramagundam, "
-                  "Manchiryala, Kothagudem, Adilabad, Kamareddy, Jagityal, Nirmal")
+                  "Manchiryala, Kothagudem, Adilabad, Kamareddy, Jagityal, Nirmal, "
+                  # newest 18 channels
+                  "Adoni, Madanapalle, Tenali, Hindupur, Tadepalligudem, Guntakal, "
+                  "Gudivada, Dharmavaram, Chirala, Tadipatri, Suryapet, Miryalaguda, "
+                  "Bhuvanagiri, Vikarabad, Wanaparthy, Nagarkurnool, Mahabubabad, Jangaon")
 
 DEFAULT_DATE = "11-08-2026"
 
