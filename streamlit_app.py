@@ -233,9 +233,19 @@ with tab_head:
                 hlog(f"[{n}/{len(items)}] {name}…")
                 try:
                     if use_ai:
-                        text, key_no = pool.generate(h_model, prompts.build_headline_prompt(content),
-                                                     on_event=hlog)
-                        line = prompts.format_headlines(text)
+                        # Telugu-only guard — reject English/Hindi answers and ask again.
+                        base_prompt = prompts.build_headline_prompt(content)
+                        line, key_no = "", 0
+                        for _try in range(1, 4):
+                            _p = base_prompt if _try == 1 else base_prompt + prompts.RETRY_TELUGU_NOTE
+                            text, key_no = pool.generate(h_model, _p, on_event=hlog)
+                            line = prompts.format_headlines(text)
+                            if prompts.is_telugu(line):
+                                break
+                            hlog(f"   ⚠️ not Telugu ({prompts.telugu_ratio(line):.0%}) — retry {_try}/3")
+                        if not prompts.is_telugu(line):
+                            hlog(f"   ❌ {name}: still not Telugu after 3 tries — skipped")
+                            prog.progress(n/len(items)); continue
                         tag = f"key #{key_no}"
                     else:
                         line, _ = headlines_local.extract(content); tag = "free"

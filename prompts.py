@@ -196,7 +196,20 @@ End with:
 
 
 # ---- Headlines extraction ----
-HEADLINE_PROMPT = """You are an expert news editor. Read the provided news content below and extract the most important, catchy headlines or key points from it.
+HEADLINE_PROMPT = """You are an expert TELUGU news editor for a Telugu television channel.
+Read the provided news content below and extract the most important, catchy headlines from it.
+
+*** LANGUAGE RULE — THIS OVERRIDES EVERYTHING ELSE ***
+Write EVERY headline in TELUGU SCRIPT ONLY (అ-ఱ, Unicode 0C00-0C7F).
+- NEVER translate to English. NEVER write in Hindi/Devanagari (क-ह). NEVER transliterate.
+- Do NOT output Latin/Roman letters at all — not for place names, not for
+  organisation names, not for anything. Write them in Telugu script instead
+  (e.g. write రాజమండ్రి, not "Rajahmundry"; రోడ్డు, not "Road").
+- Even if the source content is written in English or Hindi, your OUTPUT must
+  still be 100% Telugu.
+- Digits: write numerals as Telugu words or standard digits (0-9) only.
+If you cannot write a word in Telugu, omit that headline entirely rather than
+using another language.
 
 You must follow these strict formatting rules for the final output:
 
@@ -248,3 +261,34 @@ def build_dist_prompt(place, date=DEFAULT_DATE):
     return (t.replace("Guntur", place)
              .replace("guntur", place.lower())
              .replace("గుంటూరు", place))
+
+# ---------- Telugu-only guard ----------
+def telugu_ratio(text):
+    """Share of *letters* that are Telugu script. Digits/punctuation/spaces ignored,
+    so '33 డిగ్రీలు' still counts as 100% Telugu."""
+    tel = lat = dev = 0
+    for ch in (text or ""):
+        o = ord(ch)
+        if 0x0C00 <= o <= 0x0C7F: tel += 1
+        elif 0x0900 <= o <= 0x097F: dev += 1          # Hindi / Devanagari
+        elif ("a" <= ch <= "z") or ("A" <= ch <= "Z"): lat += 1
+    total = tel + lat + dev
+    return 1.0 if total == 0 else tel / total
+
+
+def is_telugu(text, min_ratio=0.92):
+    """True when the text is Telugu enough to publish. Rejects English translations
+    and any Devanagari at all."""
+    if not (text or "").strip():
+        return False
+    for ch in text:
+        if 0x0900 <= ord(ch) <= 0x097F:               # any Hindi char -> reject
+            return False
+    return telugu_ratio(text) >= min_ratio
+
+
+RETRY_TELUGU_NOTE = (
+    "\n\nYOUR PREVIOUS ANSWER WAS REJECTED because it was not written in Telugu script. "
+    "Rewrite ALL headlines in TELUGU SCRIPT ONLY. No English words, no Roman letters, "
+    "no Hindi. Transliterate every place and organisation name into Telugu script.\n"
+)
