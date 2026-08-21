@@ -4,7 +4,7 @@
 
 DEFAULT_PLACES = ("Guntur, Nellore, Tirupati, Warangal, Nalgonda, Kakinada, Karimnagar, "
                   "Khammam, Kurnool, Mahabubnagar, Siddipet, Rajahmundry, Nizamabad, "
-                  "Elluru, Ongole, Vizianagaram, Ananthapur, Kadapa, "
+                  "Eluru, Ongole, Vizianagaram, Ananthapur, Kadapa, "
                   # new 18 channels
                   "Nandyal, Chittoor, Machilipatnam, Bapatla, Amalapuram, Anakapalli, "
                   "Bhimavaram, Narasaraopet, Srikakulam, Proddatur, Sangareddy, Ramagundam, "
