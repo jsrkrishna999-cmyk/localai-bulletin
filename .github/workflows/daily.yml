@@ -30,16 +30,11 @@ jobs:
           python daily_scripts.py
 
       - name: Upload to Google Drive
-        if: always()                     # still upload what succeeded
+        if: always()
         env:
-          GDRIVE_SA_JSON:   ${{ secrets.GDRIVE_SA_JSON }}
-          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
-        run: |
-          if [ -z "$GDRIVE_SA_JSON" ]; then
-            echo "Drive secrets not set — skipping upload"; exit 0
-          fi
-          pip install --quiet google-api-python-client google-auth
-          python drive_upload.py
+          GAS_URL:    ${{ secrets.GAS_URL }}
+          GAS_SECRET: ${{ secrets.GAS_SECRET }}
+        run: python drive_post.py
 
       - name: Commit the day's output
         run: |
