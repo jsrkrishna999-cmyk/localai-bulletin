@@ -1,0 +1,51 @@
+name: Daily bulletin scripts
+
+# 00:01 IST = 18:31 UTC the previous day (IST is UTC+5:30).
+# GitHub's scheduler can lag a few minutes under load — that's normal and
+# harmless here, the script only cares about the date.
+on:
+  schedule:
+    - cron: "31 18 * * *"
+  workflow_dispatch:          # lets you run it by hand from the Actions tab
+
+permissions:
+  contents: write             # needed to commit the generated files back
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Generate scripts + headlines
+        env:
+          GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
+        run: |
+          python -c "import certifi" 2>/dev/null || pip install --quiet certifi
+          python daily_scripts.py
+
+      - name: Commit the day's output
+        run: |
+          git config user.name  "LocalAI TV bot"
+          git config user.email "actions@github.com"
+          git add Gemini_outs
+          if git diff --staged --quiet; then
+            echo "nothing new to commit"
+          else
+            git commit -m "scripts + headlines $(TZ=Asia/Kolkata date +%d-%m-%Y)"
+            git push
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Daily run" >> $GITHUB_STEP_SUMMARY
+          for d in dist city headlines/dist headlines/city; do
+            n=$(ls Gemini_outs/$d/*.txt 2>/dev/null | wc -l | tr -d ' ')
+            echo "- $d: $n files" >> $GITHUB_STEP_SUMMARY
+          done
