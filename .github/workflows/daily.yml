@@ -37,6 +37,7 @@ jobs:
         run: python drive_post.py
 
       - name: Commit the day's output
+        if: always()          # keep whatever generated, even if the run later failed
         run: |
           git config user.name  "LocalAI TV bot"
           git config user.email "actions@github.com"
