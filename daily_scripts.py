@@ -43,10 +43,24 @@ class Pool:
         self.i = 0
 
     def ask(self, prompt, tries=None):
-        tries = tries or len(self.ks) * 3
+        """Rate limits here are PER-MINUTE, so a 4-second retry was hopeless —
+        it burned through every key in seconds and gave up. Now each 429 marks
+        that key as cooling and we back off properly, up to a minute."""
+        tries = tries or max(40, len(self.ks) * 5)
         last = ""
-        for _ in range(tries):
-            k = self.ks[self.i % len(self.ks)]; self.i += 1
+        cooling = {}                       # key index -> unix time it's usable again
+        for attempt in range(tries):
+            idx = None
+            for step in range(len(self.ks)):     # first key not cooling
+                j = (self.i + step) % len(self.ks)
+                if cooling.get(j, 0) <= time.time():
+                    idx = j; break
+            if idx is None:                       # every key cooling — wait it out
+                wait = max(2, min(cooling.values()) - time.time())
+                log(f"    all keys rate-limited, waiting {wait:.0f}s")
+                time.sleep(wait); continue
+            self.i = idx + 1
+            k = self.ks[idx]
             try:
                 req = urllib.request.Request(
                     f"{API}/models/{MODEL}:generateContent?key={k}",
@@ -59,12 +73,16 @@ class Pool:
                                for p in d["candidates"][0]["content"]["parts"])
             except urllib.error.HTTPError as e:
                 last = f"HTTP {e.code}"
-                if e.code in (429, 500, 503):
-                    time.sleep(4); continue
+                if e.code == 429:
+                    cooling[idx] = time.time() + 65      # per-minute window
+                    continue
+                if e.code in (500, 503):
+                    time.sleep(min(30, 3 * (attempt + 1))); continue
                 raise RuntimeError(f"{last}: {e.read().decode()[:150]}")
             except Exception as e:
-                last = str(e)[:60]; time.sleep(4)
-        raise RuntimeError(f"all keys failed ({last})")
+                last = str(e)[:60]
+                time.sleep(min(20, 3 * (attempt + 1)))
+        raise RuntimeError(f"all keys failed after {tries} tries ({last})")
 
 
 def fresh(path):
